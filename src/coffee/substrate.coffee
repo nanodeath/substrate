@@ -1,27 +1,61 @@
+canvas_enabled = !document.createElement('canvas').getContext
+css_key_map =
+  "x": "left"
+  "y": "top"
+
 jQuery(($) ->
-  css_key_map =
-    "x": "left"
-    "y": "top"
     
   class Shape
     constructor: ->
-      @painted = false
-    set: (key, value) ->
-      css_key = css_key_map[key]
+      # whether the element has ever been painted (and appended to the dom)
+      @painted = false 
       
-      value = switch css_key
-        when "left", "top" then value * @substrate.grid_size
-        else value
+      # whether there are pending changes to the view
+      @dirty = false 
       
-      @css[css_key] = value
-      @dirty = true
-      @paint() if @substrate.autopaint
+      # whether this view has been flagged for removal
+      @condemned = false
+      
+      # whether this view has finally been removed from the canvas
+      @removed = false;
+    set: (key, value, paint="auto") ->
+      if typeof key == "string"
+        css_key = css_key_map[key]
+        if !css_key then css_key = key
+
+        value = @_calculateValueFor(key, value)
+        @css[css_key] = value
+        @dirty = true
+        
+        if paint == "auto"
+          @paint() if @substrate.autopaint
+        else if paint
+          @paint()
+      else # is an object
+        keyMap = key
+        for key, value of keyMap
+          @set(key, value, false)
+        if paint == "auto"
+          @paint() if @substrate.autopaint
+        else if paint
+          @paint()
     paint: ->
-      if @dirty
-        @dirty = false
-        @dom.css @css
-      unless @painted
-        @substrate._appendDom @dom
+      if @condemned
+        unless @removed
+          @dom.remove()
+          @removed = true
+      else
+        if @dirty
+          @dirty = false
+          @dom.css @css
+          @css = {}
+        unless @painted
+          @painted = true
+          @substrate._appendDom @dom
+    _calculateValueFor: (key, value) ->
+        value = switch key
+          when "x", "y" then value * @substrate.grid_size
+          else value
     _parseOptions: (opts) ->
       grid_size = @substrate.grid_size
       strokeWidth = opts.strokeWidth || 0
@@ -29,8 +63,8 @@ jQuery(($) ->
       z_index = opts.z || 1
       @css =
         "position": "absolute"
-        "left": opts.x * grid_size
-        "top": opts.y * grid_size
+        "left": @_calculateValueFor("x", opts.x)
+        "top": @_calculateValueFor("y", opts.y)
         "width": opts.width * grid_size - strokeWidth*2
         "height": opts.height * grid_size - strokeWidth*2
         "opacity": opacity
@@ -39,6 +73,8 @@ jQuery(($) ->
         "border-color": "red"
         "border-width": strokeWidth
         "z-index": z_index
+    destroy: ->
+      @condemned = true
 
   class Rectangle extends Shape
     constructor: (@substrate, opts) ->
@@ -46,7 +82,6 @@ jQuery(($) ->
       @dom = $ "<div>"
       @_parseOptions opts
       @dom.css @css
-      @dirty = false
       
   class Image extends Shape
     constructor: (@substrate, opts) ->
@@ -61,28 +96,28 @@ jQuery(($) ->
         @img.src = opts.src.src
       else
         throw new Error "Invalid source for Image (was #{opts.src})"
-      delete opts.src
       @dom = $ "<img>"
       @dom.attr "src", @img.src
       @_parseOptions opts
       @dom.css @css
-      @dirty = false
 
-  class Substrate
+  class HTMLSubstrate
     constructor: (@dom, opts) ->
       @autopaint = if opts.autopaint? then opts.autopaint else true
       @grid_size = if opts.grid_size? then opts.grid_size else 1
 
+    # Draw a rectangle!
+    # opts:
     drawRectangle: (opts={}) ->
       r = new Rectangle this, opts
-      if @autopaint
+      if @autopaint && opts.paint != false
         r.painted = true
         @_appendDom r.dom
       r
       
     drawImage: (opts={}) ->
       i = new Image this, opts
-      if @autopaint
+      if @autopaint && opts.paint != false
         i.painted = true
         @_appendDom i.dom
       i
@@ -91,8 +126,18 @@ jQuery(($) ->
       @dom.append dom
   
   $.fn.substrate = (opts={}) ->
-    this.css "position", "relative"
-    s = new Substrate this, opts
+    s = if this.is "div"
+      new HTMLSubstrate this, opts
+    else if this.is "canvas"
+      throw new Error("Canvas substrate isn't supported yet");
+    else
+      throw new Error("Substrate only works on divs (for HTML mode) and canvas")
+
+    this.css
+      "position": "relative"
+      "-webkit-user-select": "none"
+      "-moz-user-select": "none"
+    
     this.data "substrate", s
     this
 )

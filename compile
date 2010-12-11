@@ -1,0 +1,6 @@
+#!/bin/sh
+
+mkdir -p gen/js/
+mkdir -p gen/html/
+rocco src/coffee/*.coffee -o gen/html/
+coffee -o gen/js/ -c -w src/coffee/*.coffee

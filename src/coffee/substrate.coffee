@@ -1,11 +1,38 @@
-canvas_enabled = !document.createElement('canvas').getContext
+canvas_enabled = document.createElement('canvas').getContext
 css_key_map =
   "x": "left"
   "y": "top"
 
 jQuery(($) ->
+
+  class HTMLSubstrate
+    constructor: (@dom, opts) ->
+      @autopaint = if opts.autopaint? then opts.autopaint else true
+      @grid_size = if opts.grid_size? then opts.grid_size else 1
+
+    # Draw a rectangle!
+    drawRectangle: (opts={}) ->
+      r = new Rectangle this, opts
+      if @autopaint && opts.paint != false
+        r.painted = true
+        @_appendDom r.dom
+      r
+      
+    # Draws an image to the canvas
+    # In addition to the regular options,
+    # special options include:
+    # - src: can either be a URI for an image, an Image() object, or an <img> tag.  In the latter two cases, the src attribute is copied to a new Image.
+    drawImage: (opts={}) ->
+      i = new Image this, opts
+      if @autopaint && opts.paint != false
+        i.painted = true
+        @_appendDom i.dom
+      i
+
+    _appendDom: (dom) ->
+      @dom.append dom
     
-  class Shape
+  class HTMLSubstrate.Shape
     constructor: ->
       # whether the element has ever been painted (and appended to the dom)
       @painted = false 
@@ -76,14 +103,14 @@ jQuery(($) ->
     destroy: ->
       @condemned = true
 
-  class Rectangle extends Shape
+  class HTMLSubstrate.Rectangle extends Shape
     constructor: (@substrate, opts) ->
       super
       @dom = $ "<div>"
       @_parseOptions opts
       @dom.css @css
       
-  class Image extends Shape
+  class HTMLSubstrate.Image extends Shape
     constructor: (@substrate, opts) ->
       super
       if typeof opts.src == "string"
@@ -101,35 +128,15 @@ jQuery(($) ->
       @_parseOptions opts
       @dom.css @css
 
-  class HTMLSubstrate
-    constructor: (@dom, opts) ->
-      @autopaint = if opts.autopaint? then opts.autopaint else true
-      @grid_size = if opts.grid_size? then opts.grid_size else 1
 
-    # Draw a rectangle!
-    # opts:
-    drawRectangle: (opts={}) ->
-      r = new Rectangle this, opts
-      if @autopaint && opts.paint != false
-        r.painted = true
-        @_appendDom r.dom
-      r
-      
-    drawImage: (opts={}) ->
-      i = new Image this, opts
-      if @autopaint && opts.paint != false
-        i.painted = true
-        @_appendDom i.dom
-      i
-
-    _appendDom: (dom) ->
-      @dom.append dom
-  
   $.fn.substrate = (opts={}) ->
     s = if this.is "div"
       new HTMLSubstrate this, opts
     else if this.is "canvas"
-      throw new Error("Canvas substrate isn't supported yet");
+      if canvas_enabled
+        throw new Error("Canvas substrate isn't supported yet")
+      else
+        throw new Error("The <canvas> tag isn't supported on this browser")
     else
       throw new Error("Substrate only works on divs (for HTML mode) and canvas")
 

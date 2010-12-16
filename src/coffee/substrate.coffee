@@ -2,6 +2,8 @@ canvas_enabled = document.createElement('canvas').getContext
 css_key_map =
   "x": "left"
   "y": "top"
+  "z": "z-index"
+  "strokeWidth": "border-width"
 
 jQuery(($) ->
 
@@ -47,10 +49,12 @@ jQuery(($) ->
       @removed = false;
     set: (key, value, paint="auto") ->
       if typeof key == "string"
+        @opts[key] = value
+        
         css_key = css_key_map[key]
         if !css_key then css_key = key
 
-        value = @_calculateValueFor(key, value)
+        value = @_calculateValueFor(key)
         @css[css_key] = value
         @dirty = true
         
@@ -62,9 +66,7 @@ jQuery(($) ->
         keyMap = key
         for key, value of keyMap
           @set(key, value, false)
-        if paint == "auto"
-          @paint() if @substrate.autopaint
-        else if paint
+        if (paint == "auto" && @substrate.autopaint) || paint
           @paint()
     paint: ->
       if @condemned
@@ -79,27 +81,43 @@ jQuery(($) ->
         unless @painted
           @painted = true
           @substrate._appendDom @dom
-    _calculateValueFor: (key, value) ->
-        value = switch key
-          when "x", "y" then value * @substrate.grid_size
-          else value
-    _parseOptions: (opts) ->
+    _calculateValueFor: (key) ->
+      value = @opts[key]
+      switch key
+        when "x", "y", "offsetX", "offsetY"
+          (value || 0) * @substrate.grid_size
+        when "width", "height"
+          (value || 1) * @substrate.grid_size - @_calculateValueFor("strokeWidth")*2
+        when "strokeWidth"
+          value || 0
+        when "z"
+          value || 1
+        when "opacity"
+          value || 1.0
+        else value
+    _parseOptions: (@opts) ->
       grid_size = @substrate.grid_size
-      strokeWidth = opts.strokeWidth || 0
-      opacity = opts.opacity || 1.0
-      z_index = opts.z || 1
+      
       @css =
         "position": "absolute"
-        "left": @_calculateValueFor("x", opts.x)
-        "top": @_calculateValueFor("y", opts.y)
-        "width": opts.width * grid_size - strokeWidth*2
-        "height": opts.height * grid_size - strokeWidth*2
-        "opacity": opacity
-        "background-color": opts.fillColor
         "border-style": "solid"
         "border-color": "red"
-        "border-width": strokeWidth
-        "z-index": z_index
+        "background-image": "url('#{opts.src}')"
+        "background-repeat": "no-repeat"
+        
+      for property, value of @opts
+        css_key = css_key_map[property] || property
+        @css[css_key] = @_calculateValueFor property
+        
+      required_properties = ["x", "y", "z", "width", "height", "opacity", "strokeWidth"]
+      for property in required_properties
+        css_key = css_key_map[property] || property
+        unless @css[css_key]?
+          @css[css_key] = @_calculateValueFor property
+
+      if @opts.offsetX? || @opts.offsetY?
+        @css["background-position"] = @_calculateValueFor("offsetX") + "px " + @_calculateValueFor "offsetY" + "px"
+        
     destroy: ->
       @condemned = true
 
@@ -114,20 +132,24 @@ jQuery(($) ->
     constructor: (@substrate, opts) ->
       super
       if typeof opts.src == "string"
-        @img = new window.Image
-        @img.src = opts.src
+        img = new window.Image
+        img.src = opts.src
       else if opts.src instanceof Image
-        @img = opts.src
+        img = opts.src
       else if opts.src instanceof HTMLImageElement
-        @img = new Image
-        @img.src = opts.src.src
+        img = new window.Image
+        img.src = opts.src.src
+        opts.src = opts.src.src
       else
         throw new Error "Invalid source for Image (was #{opts.src})"
-      @dom = $ "<img>"
-      @dom.attr "src", @img.src
+      @dom = $ "<div>"
       @_parseOptions opts
       @dom.css @css
-
+    set: (key, value) ->
+      if key == "src"
+        @dom.attr "src", value
+      else
+        super
 
   $.fn.substrate = (opts={}) ->
     s = if this.is "div"

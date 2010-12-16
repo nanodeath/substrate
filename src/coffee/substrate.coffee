@@ -1,9 +1,15 @@
 canvas_enabled = document.createElement('canvas').getContext
+
+offsetFunction = (obj, opts) ->
+    ["background-position", obj._calculateValueFor("offsetX") + "px " + obj._calculateValueFor("offsetY") + "px"]
+
 css_key_map =
   "x": "left"
   "y": "top"
   "z": "z-index"
   "strokeWidth": "border-width"
+  "offsetX": offsetFunction
+  "offsetY": offsetFunction
 
 jQuery(($) ->
 
@@ -53,8 +59,12 @@ jQuery(($) ->
         
         css_key = css_key_map[key]
         if !css_key then css_key = key
-
-        value = @_calculateValueFor(key)
+        
+        if typeof css_key == "function"
+          [css_key, value] = css_key this, @opts
+        else
+          value = @_calculateValueFor(key)
+          
         @css[css_key] = value
         @dirty = true
         
@@ -84,8 +94,10 @@ jQuery(($) ->
     _calculateValueFor: (key) ->
       value = @opts[key]
       switch key
-        when "x", "y", "offsetX", "offsetY"
+        when "x", "y"
           (value || 0) * @substrate.grid_size
+        when "offsetX", "offsetY"
+          (-value || 0) * @substrate.grid_size
         when "width", "height"
           (value || 1) * @substrate.grid_size - @_calculateValueFor("strokeWidth")*2
         when "strokeWidth"

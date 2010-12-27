@@ -31,7 +31,7 @@ jQuery(($) ->
     # special options include:
     # - src: can either be a URI for an image, an Image() object, or an <img> tag.  In the latter two cases, the src attribute is copied to a new Image.
     drawImage: (opts={}) ->
-      i = new Image this, opts
+      i = new HTMLSubstrate.Image this, opts
       if @autopaint && opts.paint != false
         i.painted = true
         @_appendDom i.dom
@@ -114,8 +114,8 @@ jQuery(($) ->
         "position": "absolute"
         "border-style": "solid"
         "border-color": "red"
-        "background-image": "url('#{opts.src}')"
         "background-repeat": "no-repeat"
+      @css["background-image"] = "url('#{opts.src}')" if opts.src?
         
       for property, value of @opts
         css_key = css_key_map[property] || property
@@ -133,14 +133,14 @@ jQuery(($) ->
     destroy: ->
       @condemned = true
 
-  class HTMLSubstrate.Rectangle extends Shape
+  class HTMLSubstrate.Rectangle extends HTMLSubstrate.Shape
     constructor: (@substrate, opts) ->
       super
       @dom = $ "<div>"
       @_parseOptions opts
       @dom.css @css
       
-  class HTMLSubstrate.Image extends Shape
+  class HTMLSubstrate.Image extends HTMLSubstrate.Shape
     constructor: (@substrate, opts) ->
       super
       if typeof opts.src == "string"
@@ -178,6 +178,7 @@ jQuery(($) ->
       "position": "relative"
       "-webkit-user-select": "none"
       "-moz-user-select": "none"
+      "user-select": "none"
     
     this.data "substrate", s
     this
